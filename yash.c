@@ -29,14 +29,13 @@ int main(int argc, char const *argv[])
 		
 		while (current_pipe != NULL)
 		{
-			printf("%s\n", current_pipe);
+			//printf("%s\n", current_pipe);
 			PID = fork();
 			if(PID == 0){ //child goes here
 				//printf("Child PID %d\n",PID);
 
 				if (!has_pipe){
 					execlp(user_input,user_input, NULL);
-					exit(0);
 
 
 
@@ -52,21 +51,21 @@ int main(int argc, char const *argv[])
 						close(pipefd[1]);
 						read(pipefd[0], &buf, 10000);
 						current_pipe = strtok_r(NULL, "|", &save_pointer_pipe); 
-						printf("child %s\n", current_pipe);
+						//printf("child %s\n", current_pipe);
 						execlp(current_pipe,current_pipe, &buf, NULL);
-						exit(0);
+						
 
 
 					} else {// parent code
 						close(pipefd[0]);
 						//changes fdt output from stdout to pipe write 
 						dup2(STDOUT_FILENO, STDIN_FILENO);//pipefd[1]);
-						printf("parent %s\n", current_pipe);
-						execlp(current_pipe,current_pipe, NULL);
+						//printf("parent %s\n", current_pipe);
 						close(pipefd[1]);
+						execlp(current_pipe,current_pipe, NULL);
 
 					}
-
+					
 				}
 				current_pipe = strtok_r(NULL, "|", &save_pointer_pipe); 
 
@@ -74,6 +73,8 @@ int main(int argc, char const *argv[])
 			}else{ //parent goes here
 				//printf("Parent PID %d\n",PID);
 				waitpid(-1, &wstatus, 0);
+				break;
+
 
 			}
 
