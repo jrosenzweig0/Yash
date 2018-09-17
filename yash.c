@@ -8,12 +8,11 @@
 
 int num_spaces(char*);
 void parse_spaces(char*, char**);
+void handle_cd(char*);
 
 int main(int argc, char const *argv[])
 {
-	char *x[9];
-	char y[] = "this is a test";
-	parse_spaces(y, x);
+
 	while (true)
 	{
 		char *user_input = readline("# ");
@@ -26,25 +25,26 @@ int main(int argc, char const *argv[])
 		char *has_pipe = strchr(user_input, '|');
 
 
-		// if (current_input == "|" || current_input == ">" || current_input == "<"){
-		// 	printf("yash: unexpected token near %s",current_input);
-		// 	continue;
-		// }
+		if (user_input[0] == 'c' && user_input[1] == 'd'){
+			handle_cd(user_input);
+			continue;
+		}
+
 		current_pipe = strtok_r(user_input, "|", &save_pointer_pipe); 
-		//current_input = strtok_r(current_pipe, " ", &save_pointer_input);
 		
 		while (current_pipe != NULL)
 		{
 			//printf("%s\n", current_pipe);
 			PID = fork();
 			if(PID == 0){ //child goes here
-				printf("Child PID %d\n",PID);
 
 				if (!has_pipe){
-
-					execlp("wal", "wal", "-i", "/back");
-
-					execlp(user_input,user_input, NULL);
+					char *args[num_spaces(user_input)+2];
+					args[num_spaces(user_input)+1] = NULL;
+					parse_spaces(user_input, args);
+					if(execvp(args[0], args) < 0){
+						printf("ERROR\n");
+					}
 
 
 
@@ -61,7 +61,12 @@ int main(int argc, char const *argv[])
 						read(pipefd[0], &buf, 10000);
 						current_pipe = strtok_r(NULL, "|", &save_pointer_pipe); 
 						//printf("child %s\n", current_pipe);
-						execlp(current_pipe,current_pipe, &buf, NULL);
+						char *args[num_spaces(current_pipe)+2];
+						args[num_spaces(current_pipe)+1] = NULL;
+						parse_spaces(current_pipe, args);
+						if(execvp(args[0], args) < 0){
+							printf("ERROR\n");
+						}
 						
 
 
@@ -72,8 +77,12 @@ int main(int argc, char const *argv[])
 						dup2(STDOUT_FILENO, STDIN_FILENO);//pipefd[1]);
 						//printf("parent %s\n", current_pipe);
 						close(pipefd[1]);
-						execlp(current_pipe,current_pipe, NULL);
-
+						char *args[num_spaces(current_pipe)+2];
+						args[num_spaces(current_pipe)+1] = NULL;
+						parse_spaces(current_pipe, args);
+						if(execvp(args[0], args) < 0){
+							printf("ERROR\n");
+						}
 					}
 					
 				}
@@ -121,5 +130,11 @@ void parse_spaces(char* str, char **parsed_string){
 	for(int i = 0; i < spaces; i++){
 		parsed_string[i] = input;
 		input = strtok_r(NULL, " ", &save_pointer_input);
+	}
+}
+
+void handle_cd(char *input){
+	if (strlen(input) > 3){
+		chdir(input + 3);
 	}
 }
