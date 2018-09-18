@@ -24,6 +24,9 @@ struct Job{
 	char symbol;
 };
 
+struct Job job_list[20];
+int job_pointer = 0;
+
 /***************************************/
 //            functions                //
 /***************************************/
@@ -98,6 +101,7 @@ int num_spaces(char* str){
 	}
 	return spaces;
 }
+ 
 
 void parse_spaces(char* str, char **parsed_string){
 
@@ -135,28 +139,44 @@ void print_jobs(struct Job *jobs, int job_pointer){
 	}
 }
 
-void update_jobs(struct Job *jobs, int job_pointer){
-
-}
-
 pid_t fg_process(struct Job *jobs, int job_pointer){
 	for(int i = 0; i < job_pointer; i++){
-		if(jobs[i].symbol = '+'){
+		if(jobs[i].symbol == '+'){
 			return jobs[i].PID;
 		}
 	}
 	return -1;
 }
 
-void remove_job(struct Job *jobs, int job_pointer, pid_t PID){
+int get_job(pid_t pid){
+	for(int i = 0; i < job_pointer; i++){
+		if(job_list[i].PID == pid){
+			return i;
+		}
+	}
+	return -1;
+	printf("ERROR!!!!!!!!\n");
+}
 
+void remove_job(pid_t PID){
+	for(int i = get_job(PID); i < job_pointer; i ++){
+		job_list[i] = job_list[i+1];
+	}
+	job_pointer--;
+}
+
+void update_jobs(){
+	for(int i = 0; i < job_pointer; i++){
+		if (kill(job_list[i].PID,0) != 0){
+			remove_job(job_list[i].PID);
+		}
+	}
 }
 
 /***************************************/
 //          Signal Handelers           //
 /***************************************/
-struct Job job_list[20];
-int job_pointer = 0;
+
 void SIG_HANDLE(int sig){ // ctrl c
 	switch(sig){
 		case SIGINT:
@@ -167,6 +187,8 @@ void SIG_HANDLE(int sig){ // ctrl c
 			//printf("Caught SIGTSTP\n");
 
 			if (fg_process(job_list, job_pointer) > 0){
+
+				strcpy(job_list[get_job(fg_process(job_list, job_pointer))].status, "Stopped");
 				kill(fg_process(job_list, job_pointer), SIGTSTP);
 			}
 
@@ -211,6 +233,7 @@ int main(int argc, char const *argv[])
 			continue;
 		}
 		if (user_input[0] == 'j' && user_input[1] == 'o' && user_input[2] == 'b' && user_input[3] == 's'){
+			update_jobs();
 			print_jobs(job_list, job_pointer);
 		}
 		bool has_pipe = has_p(user_input);
@@ -379,10 +402,11 @@ int main(int argc, char const *argv[])
 			}
 		}
 		else{//parent code goes here
-			make_job(job_list, PID, user_input_copy, job_pointer, "Runnung", '+');
+			make_job(job_list, PID, user_input_copy, job_pointer, "Running", '+');
 			job_pointer++;
+			update_jobs();
 			if(!background){
-				waitpid(PID, &wstatus, 0);
+				waitpid(PID, &wstatus, WUNTRACED);
 			}
 			//waitPID depending on jobs
 		}
