@@ -10,6 +10,8 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+
+
 /***************************************/
 //             Structs                 //
 /***************************************/
@@ -25,13 +27,38 @@ struct Job{
 /***************************************/
 //            functions                //
 /***************************************/
+char* rm_s(char *str){
+	if(str && str[0] == ' '){
+		str = str + 1;
+	}
+	return str;
+}
 
-int parse_tokens(char *str, char **strarray, bool has_pipe){
+bool has_p(char *str){
+	bool p = false;
+	for(int i = 0; i < strlen(str); i++){
+		if(str[i] == '|'){
+			p = true;
+		}
+	}
+	return p;
+}
+
+bool has_a(char *str){
+	bool a = false;
+	for(int i = 0; i < strlen(str); i++){
+		if(str[i] == '&'){
+			a = true;
+		}
+	}
+	return a;
+}
+
+int parse_tokens(char *str, char **strarray){
 	int count = 0;
 	for(int i = 0; i < strlen(str); i++){
 		if(str[i] == '|'){
 			strarray[count] = "|";
-			has_pipe = true;
 			count++;
 		}
 		if(str[i] == '<'){
@@ -97,26 +124,58 @@ void make_job(struct Job *jobs, pid_t PID, char *name, int pointer, char *status
 	strcpy(jobs[pointer].name, name);
 	strcpy(jobs[pointer].status, status);
 	jobs[pointer].symbol = symbol;
+	for(int i = 0; i < pointer; i++){
+		jobs[i].symbol = '-';
+	}
+}
+
+void print_jobs(struct Job *jobs, int job_pointer){
+	for(int i = 0; i < job_pointer; i++){
+		printf("[%d] %c %-11s%s\n",jobs[i].job_num, jobs[i].symbol, jobs[i].status, jobs[i].name);
+	}
+}
+
+void update_jobs(struct Job *jobs, int job_pointer){
+
+}
+
+pid_t fg_process(struct Job *jobs, int job_pointer){
+	for(int i = 0; i < job_pointer; i++){
+		if(jobs[i].symbol = '+'){
+			return jobs[i].PID;
+		}
+	}
+	return -1;
+}
+
+void remove_job(struct Job *jobs, int job_pointer, pid_t PID){
+
 }
 
 /***************************************/
 //          Signal Handelers           //
 /***************************************/
-
+struct Job job_list[20];
+int job_pointer = 0;
 void SIG_HANDLE(int sig){ // ctrl c
 	switch(sig){
 		case SIGINT:
-			printf("Caught SIGINT\n");
+			//printf("Caught SIGINT\n");
 			exit(0);
 			break;
 		case SIGTSTP:
-			printf("Caught SIGTSTP\n");
+			//printf("Caught SIGTSTP\n");
+
+			if (fg_process(job_list, job_pointer) > 0){
+				kill(fg_process(job_list, job_pointer), SIGTSTP);
+			}
+
 			break;
 		case SIGCONT:
-			printf("Caught SIGCONT\n");
+			//printf("Caught SIGCONT\n");
 			break;
 		case SIGCHLD:
-			printf("Caught SIGCHLD\n");
+			//printf("Caught SIGCHLD\n");
 			break;
 	}
 
@@ -126,10 +185,10 @@ void SIG_HANDLE(int sig){ // ctrl c
 //            Main Code                //
 /***************************************/
 
+
+
 int main(int argc, char const *argv[])
 {
-	struct Job job_list[10];
-	int job_pointer = 0;
 
 	signal(SIGINT, SIG_HANDLE);
 	signal(SIGTSTP, SIG_HANDLE);
@@ -142,7 +201,6 @@ int main(int argc, char const *argv[])
 		char commands[30][67]; //this is an array of the commands between the operators from the input
 		int num_tokens; //number of operators
 		char *save_pointer;
-		bool has_pipe = false;
 		int wstatus;
 		char user_input_copy[2000];
 
@@ -152,17 +210,28 @@ int main(int argc, char const *argv[])
 			handle_cd(user_input);
 			continue;
 		}
+		if (user_input[0] == 'j' && user_input[1] == 'o' && user_input[2] == 'b' && user_input[3] == 's'){
+			print_jobs(job_list, job_pointer);
+		}
+		bool has_pipe = has_p(user_input);
+		bool background = has_a(user_input);
+
 		strcpy(user_input_copy, user_input);
-		num_tokens = parse_tokens(user_input, tokens, has_pipe);
+		if (background){
+			user_input[strlen(user_input)-1] = ' ';
+		}
+		num_tokens = parse_tokens(user_input, tokens);
 		/***************************************/
 		//            Parse Input              //
 		/***************************************/
-		char *command = strtok_r(user_input, "|<>&", &save_pointer);
-		strcpy(commands[0], command);
+		char *command = strtok_r(user_input, "|<>", &save_pointer);
+		if (command != NULL){
+			strcpy(commands[0], command);
+		}
 		int index = 1;
 
 		while (command != NULL){
-			if((command = strtok_r(NULL,"|<>&", &save_pointer)) == NULL){
+			if((command = strtok_r(NULL,"|<>", &save_pointer)) == NULL){
 				break;
 			}
 			strcpy(commands[index], command);
@@ -175,8 +244,7 @@ int main(int argc, char const *argv[])
 		pid_t PID = 0;
 		PID = fork();
 		if (PID == 0){//child code goes here
-			make_job(job_list, getpid(), user_input_copy, job_pointer, "Runnung", '+');
-			job_pointer++;
+
 
 			/***************************************/
 			//             No Pipe                 //
@@ -188,20 +256,18 @@ int main(int argc, char const *argv[])
 				parse_spaces(commands[0], args);
 
 				for(int i = 0; i < num_tokens; i++){
+
 					if (tokens[i] == ">"){
-						int fd = open(commands[i+1], O_CREAT|O_WRONLY, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH);
+						int fd = open(rm_s(commands[i+1]), O_CREAT|O_WRONLY, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH);
 						dup2(fd, STDOUT_FILENO);
 					}
 					else if (tokens[i] == "2>"){
-						int fd = open(commands[i+1], O_CREAT|O_WRONLY, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH);
+						int fd = open(rm_s(commands[i+1]), O_CREAT|O_WRONLY, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH);
 						dup2(fd, STDERR_FILENO);
 					}
 					else if (tokens[i] == "<"){
-						int fd = open(commands[i+1], O_CREAT|O_RDONLY, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH);
+						int fd = open(rm_s(commands[i+1]), O_CREAT|O_RDONLY, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH);
 						dup2(fd, STDIN_FILENO);
-					}
-					else if (tokens[i] == "&"){
-						printf("&&&& ahhhhh\n");
 					}
 					else{
 						printf("ERROR UNEXPECTED TOKEN\n");
@@ -209,7 +275,7 @@ int main(int argc, char const *argv[])
 				}
 
 				if(execvp(args[0], args) < 0){
-					printf("ERROR\n");
+					//printf("ERROR\n");
 				}
 			}
 			/***************************************/
@@ -220,10 +286,10 @@ int main(int argc, char const *argv[])
 				if(pipe(pipefd) < 0){
 					printf("PIPE ERROR\n");
 				}
-				PID = 0;
-				PID = fork();
+				pid_t PID1 = 0;
+				PID1 = fork();
 
-				if(PID == 0){//child command to right of pipe
+				if(PID1 == 0){//child command to right of pipe
 					close(pipefd[1]);
 					int pipe_position;
 					for(int i = 0; i < num_tokens; i++){
@@ -242,20 +308,18 @@ int main(int argc, char const *argv[])
 						if (i == pipe_position){
 							continue;
 						}
+
 						if (tokens[i] == ">"){
-							int fd = open(commands[i+1], O_CREAT|O_WRONLY, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH);
+							int fd = open(rm_s(commands[i+1]), O_CREAT|O_WRONLY, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH);
 							dup2(fd, STDOUT_FILENO);
 						}
 						else if (tokens[i] == "2>"){
-							int fd = open(commands[i+1], O_CREAT|O_WRONLY, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH);
+							int fd = open(rm_s(commands[i+1]), O_CREAT|O_WRONLY, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH);
 							dup2(fd, STDERR_FILENO);
 						}
 						else if (tokens[i] == "<"){
-							int fd = open(commands[i+1], O_CREAT|O_RDONLY, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH);
+							int fd = open(rm_s(commands[i+1]), O_CREAT|O_RDONLY, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH);
 							dup2(fd, STDIN_FILENO);
-						}
-						else if (tokens[i] == "&"){
-							printf("&&&& ahhhhh\n");
 						}
 						else if (tokens[i] == "|"){
 							break;
@@ -267,9 +331,9 @@ int main(int argc, char const *argv[])
 					}
 
 					if(execvp(args[0], args) < 0){
-						printf("ERROR\n");
+						//printf("ERROR\n");
 					}
-					printf("ERROR\n");
+					//printf("ERROR\n");
 
 
 				}
@@ -281,20 +345,18 @@ int main(int argc, char const *argv[])
 					dup2(pipefd[1], STDOUT_FILENO);
 
 					for(int i = 0; i< num_tokens; i++){
+
 						if (tokens[i] == ">"){
-							int fd = open(commands[i+1], O_CREAT|O_WRONLY, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH);
+							int fd = open(rm_s(commands[i+1]), O_CREAT|O_WRONLY, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH);
 							dup2(fd, STDOUT_FILENO);
 						}
 						else if (tokens[i] == "2>"){
-							int fd = open(commands[i+1], O_CREAT|O_WRONLY, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH);
+							int fd = open(rm_s(commands[i+1]), O_CREAT|O_WRONLY, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH);
 							dup2(fd, STDERR_FILENO);
 						}
 						else if (tokens[i] == "<"){
-							int fd = open(commands[i+1], O_CREAT|O_RDONLY, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH);
+							int fd = open(rm_s(commands[i+1]), O_CREAT|O_RDONLY, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH);
 							dup2(fd, STDIN_FILENO);
-						}
-						else if (tokens[i] == "&"){
-							printf("&&&& ahhhhh\n");
 						}
 						else if (tokens[i] == "|"){
 							break;
@@ -305,9 +367,9 @@ int main(int argc, char const *argv[])
 					}
 
 					if(execvp(args[0], args) < 0){
-						printf("ERROR\n");
+						//printf("ERROR\n");
 					}
-					printf("ERROR\n");
+					//printf("ERROR\n");
 
 				}
 
@@ -317,7 +379,11 @@ int main(int argc, char const *argv[])
 			}
 		}
 		else{//parent code goes here
-			waitpid(PID, &wstatus, 0);
+			make_job(job_list, PID, user_input_copy, job_pointer, "Runnung", '+');
+			job_pointer++;
+			if(!background){
+				waitpid(PID, &wstatus, 0);
+			}
 			//waitPID depending on jobs
 		}
 
