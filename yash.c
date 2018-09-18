@@ -49,40 +49,41 @@ int main(int argc, char const *argv[])
 
 
 				} else {
+
+					int pipefd[2];
+					if (pipe(pipefd) < 0){
+						printf("PIPE ERROR\n");
+					}
+
 					PID = 0;
 					PID = fork();
-					int pipefd[2];
-					pipe(pipefd);
-					char buf;
-
 
 					if (PID == 0) {//child code
+					
 						close(pipefd[1]);
-						read(pipefd[0], &buf, 10000);
 						current_pipe = strtok_r(NULL, "|", &save_pointer_pipe); 
-						//printf("child %s\n", current_pipe);
 						char *args[num_spaces(current_pipe)+2];
 						args[num_spaces(current_pipe)+1] = NULL;
 						parse_spaces(current_pipe, args);
+						dup2(pipefd[0], STDIN_FILENO);
 						if(execvp(args[0], args) < 0){
 							printf("ERROR\n");
 						}
-						
+						printf("ERROR\n");
+
 
 
 					} else {// parent code
 						close(pipefd[0]);
-
-						//changes fdt output from stdout to pipe write 
-						dup2(STDOUT_FILENO, STDIN_FILENO);//pipefd[1]);
-						//printf("parent %s\n", current_pipe);
-						close(pipefd[1]);
 						char *args[num_spaces(current_pipe)+2];
 						args[num_spaces(current_pipe)+1] = NULL;
 						parse_spaces(current_pipe, args);
+						dup2(pipefd[1], STDOUT_FILENO);
 						if(execvp(args[0], args) < 0){
 							printf("ERROR\n");
 						}
+						printf("ERROR\n");
+
 					}
 					
 				}
