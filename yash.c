@@ -27,6 +27,7 @@ struct Job{
 struct Job job_list[20];
 int job_pointer = 0;
 
+
 /***************************************/
 //            functions                //
 /***************************************/
@@ -171,7 +172,10 @@ void update_jobs(){
 			remove_job(job_list[i].PID);
 		}
 	}
+	job_list[job_pointer-1].symbol = '+';
 }
+
+
 
 /***************************************/
 //          Signal Handelers           //
@@ -180,11 +184,10 @@ void update_jobs(){
 void SIG_HANDLE(int sig){ // ctrl c
 	switch(sig){
 		case SIGINT:
-			//printf("Caught SIGINT\n");
-			exit(0);
+			kill(job_list[job_pointer-1].PID, SIGINT);
 			break;
 		case SIGTSTP:
-			//printf("Caught SIGTSTP\n");
+			printf("Caught SIGTSTP\n");
 
 			if (fg_process(job_list, job_pointer) > 0){
 
@@ -194,10 +197,9 @@ void SIG_HANDLE(int sig){ // ctrl c
 
 			break;
 		case SIGCONT:
-			//printf("Caught SIGCONT\n");
+			printf("Caught SIGCONT\n");
 			break;
 		case SIGCHLD:
-			//printf("Caught SIGCHLD\n");
 			break;
 	}
 
@@ -223,7 +225,7 @@ int main(int argc, char const *argv[])
 		char commands[30][67]; //this is an array of the commands between the operators from the input
 		int num_tokens; //number of operators
 		char *save_pointer;
-		int wstatus;
+		int wstatus, cstatus, dstatus;
 		char user_input_copy[2000];
 
 
@@ -232,10 +234,33 @@ int main(int argc, char const *argv[])
 			handle_cd(user_input);
 			continue;
 		}
+
 		if (user_input[0] == 'j' && user_input[1] == 'o' && user_input[2] == 'b' && user_input[3] == 's'){
 			update_jobs();
 			print_jobs(job_list, job_pointer);
+			continue;
 		}
+
+		if (user_input[0] == 'f' && user_input[1] == 'g'){
+			if (fg_process(job_list, job_pointer) > 0){
+				kill(job_list[job_pointer-1].PID, SIGCONT);
+				printf("%s\n", job_list[get_job(fg_process(job_list, job_pointer))].name);
+				waitpid(job_list[job_pointer].PID, &dstatus, WUNTRACED);
+			}
+			continue;
+		}
+
+		if (user_input[0] == 'b' && user_input[1] == 'g'){
+			for(int i = job_pointer-1; i >=0; i++){
+				if(job_list[i].status[0] == 'S' && job_list[i].status[1] == 't'){
+					kill(job_list[i].PID, SIGCONT);
+					printf("%s\n", job_list[i].name);
+					break;
+				}
+			}
+			continue;
+		}
+
 		bool has_pipe = has_p(user_input);
 		bool background = has_a(user_input);
 
@@ -297,8 +322,10 @@ int main(int argc, char const *argv[])
 					}
 				}
 
+
 				if(execvp(args[0], args) < 0){
-					//printf("ERROR\n");
+					printf("ERjhkfROR\n");
+					continue;
 				}
 			}
 			/***************************************/
@@ -354,9 +381,9 @@ int main(int argc, char const *argv[])
 					}
 
 					if(execvp(args[0], args) < 0){
-						//printf("ERROR\n");
+						printf("ERROR\n");
 					}
-					//printf("ERROR\n");
+					printf("ERROR\n");
 
 
 				}
@@ -402,16 +429,20 @@ int main(int argc, char const *argv[])
 			}
 		}
 		else{//parent code goes here
-			make_job(job_list, PID, user_input_copy, job_pointer, "Running", '+');
+			make_job(job_list, PID, user_input_copy, job_pointer, "Running", '-');
 			job_pointer++;
 			update_jobs();
+			pid_t x;
+			if ((x = waitpid(-1, &cstatus, WNOHANG)) > 0){
+				strcpy(job_list[get_job(x)].status, "Done");
+				printf("[%d] %c %-11s%s\n",job_list[get_job(x)].job_num, job_list[get_job(x)].symbol, job_list[get_job(x)].status, job_list[get_job(x)].name);
+				remove_job(x);
+			}
 			if(!background){
 				waitpid(PID, &wstatus, WUNTRACED);
 			}
 			//waitPID depending on jobs
 		}
-
-
 
 	}
 }
