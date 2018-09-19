@@ -28,6 +28,7 @@ struct Job job_list[20];
 int job_pointer = 0;
 
 
+
 /***************************************/
 //            functions                //
 /***************************************/
@@ -187,10 +188,11 @@ void update_jobs(){
 void SIG_HANDLE(int sig){ // ctrl c
 	switch(sig){
 		case SIGINT:
+			printf("\n");
 			kill(job_list[job_pointer-1].PID, SIGINT);
 			break;
 		case SIGTSTP:
-			//printf("Caught SIGTSTP\n");
+			printf("\n");
 
 			if (fg_process(job_list, job_pointer) > 0){
 
@@ -230,9 +232,10 @@ int main(int argc, char const *argv[])
 		char *save_pointer;
 		int wstatus, cstatus, dstatus, estatus;
 		char user_input_copy[2000];
+		char buf;
 
-
-		char *user_input = readline("# ");
+		printf("%s", getcwd(&buf, 500));
+		char *user_input = readline(" # ");
 		if(user_input == 0){
 			exit(0);
 		}
