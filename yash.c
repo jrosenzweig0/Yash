@@ -461,6 +461,6 @@ int main(int argc, char const *argv[])
 			}
 			//waitPID depending on jobs
 		}
-
+		free(user_input);
 	}
 }
